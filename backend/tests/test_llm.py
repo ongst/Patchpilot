@@ -37,6 +37,6 @@ def test_parse_proposal_and_tool_dispatch(tmp_path: Path):
 
 
 def test_propose_requires_api_key(tmp_path: Path):
-    llm = RepairLLM(Settings(data_dir=tmp_path / "data", workspace_dir=tmp_path / "work"))
+    llm = RepairLLM(Settings(data_dir=tmp_path / "data", workspace_dir=tmp_path / "work", llm_api_key=""))
     with pytest.raises(RuntimeError, match="API_KEY"):
         llm.propose(RepositoryTools(tmp_path), "issue", "python", None, "", 1)

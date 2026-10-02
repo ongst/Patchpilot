@@ -134,3 +134,5 @@ class HealthResponse(BaseModel):
     docker: bool
     llm_configured: bool
     version: str
+    ready_for_repair: bool
+    ready_for_push: bool

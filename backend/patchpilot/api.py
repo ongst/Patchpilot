@@ -28,12 +28,17 @@ def health(request: Request) -> HealthResponse:
     database = _store(request).ping()
     docker = service.workflow.runner.available()
     llm = service.workflow.llm.configured
+    git_available = shutil.which("git") is not None
+    ready_for_repair = database and docker and llm and git_available
+    ready_for_push = ready_for_repair and bool(service.settings.github_token)
     return HealthResponse(
-        status="ok" if database and shutil.which("git") and docker and llm else "degraded",
+        status="ok" if ready_for_repair else "degraded",
         database=database,
-        git=shutil.which("git") is not None,
+        git=git_available,
         docker=docker,
         llm_configured=llm,
+        ready_for_repair=ready_for_repair,
+        ready_for_push=ready_for_push,
         version=__version__,
     )
 

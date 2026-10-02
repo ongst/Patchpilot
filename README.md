@@ -85,12 +85,26 @@ powershell -ExecutionPolicy Bypass -File scripts\check.ps1
 
 | 方法 | 路径 | 用途 |
 |---|---|---|
+| `GET` | `/api/health` | 健康检查 |
 | `POST` | `/api/runs` | 创建修复任务 |
 | `GET` | `/api/runs/{id}` | 获取当前状态 |
 | `GET` | `/api/runs/{id}/events` | SSE 执行轨迹 |
 | `GET` | `/api/runs/{id}/diff` | 获取统一 Diff |
 | `POST` | `/api/runs/{id}/decisions` | 批准、拒绝或编辑补丁 |
 | `POST` | `/api/runs/{id}/cancel` | 取消任务 |
+
+### 健康检查
+
+`GET /api/health` 返回运行环境就绪情况，不涉及业务数据：
+
+| 字段 | 含义 |
+|---|---|
+| `status` | `ok` 表示就绪，`degraded` 表示有依赖缺失 |
+| `database` / `git` / `docker` / `llm_configured` | 四项底层依赖各自的检查结果 |
+| `ready_for_repair` | 本地修复条件是否满足（四项底层依赖全部就绪） |
+| `ready_for_push` | 修复条件和 GitHub 推送凭据是否同时满足 |
+
+接口只返回凭据是否存在（体现在 `ready_for_push` 布尔值中），不会向前端返回任何真实密钥。
 
 ## 当前限制
 

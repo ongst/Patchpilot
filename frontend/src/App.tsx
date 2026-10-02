@@ -179,6 +179,7 @@ function App() {
         <div className="health-card">
           <div><Activity size={15} /> 系统状态 <span className={`dot ${health?.status ?? 'offline'}`} /></div>
           <small>DB {health?.database ? '✓' : '×'} · Git {health?.git ? '✓' : '×'} · Docker {health?.docker ? '✓' : '×'} · LLM {health?.llm_configured ? '✓' : '×'}</small>
+          <small>修复：{health?.ready_for_repair ? '可用' : '未就绪'} · 推送：{health?.ready_for_push ? '可用' : '未就绪'}</small>
         </div>
       </aside>
 

@@ -79,5 +79,7 @@ export interface Health {
   docker: boolean
   llm_configured: boolean
   version: string
+  ready_for_repair: boolean
+  ready_for_push: boolean
 }
 
