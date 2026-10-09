@@ -106,6 +106,13 @@ powershell -ExecutionPolicy Bypass -File scripts\check.ps1
 
 接口只返回凭据是否存在（体现在 `ready_for_push` 布尔值中），不会向前端返回任何真实密钥。
 
+### SSE 执行轨迹
+
+`GET /api/runs/{id}/events` 使用 SSE 实时推送执行轨迹：
+
+- 支持 `after` 查询参数和 `Last-Event-ID` 请求头两种续传游标，断线重连后只返回尚未接收的事件；
+- 任务进入终态后会发送 `end` 事件并自动关闭连接。
+
 ## 当前限制
 
 - 只支持公开 GitHub 仓库；私有仓库和自动 PR 不在首版范围。

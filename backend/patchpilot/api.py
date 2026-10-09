@@ -22,6 +22,19 @@ def _store(request: Request):
     return request.app.state.store
 
 
+def _safe_cursor(value: str | None) -> int:
+    """将游标字符串转换为非负整数，若无效则返回 0。"""
+    if value is None:
+        return 0
+    try:
+        number = int(value)
+    except ValueError:
+        return 0
+    if number < 0:
+        return 0
+    return number
+
+
 @router.get("/health", response_model=HealthResponse)
 def health(request: Request) -> HealthResponse:
     service = _service(request)
@@ -94,7 +107,8 @@ def events(run_id: str, request: Request, after: int = Query(default=0, ge=0)) -
         raise HTTPException(status_code=404, detail="Run not found")
 
     async def stream() -> AsyncIterator[str]:
-        cursor = after
+        last_event_id = _safe_cursor(request.headers.get("Last-Event-ID"))
+        cursor = max(after, last_event_id)
         idle_ticks = 0
         while True:
             if await request.is_disconnected():
@@ -107,7 +121,10 @@ def events(run_id: str, request: Request, after: int = Query(default=0, ge=0)) -
             if run is None or run.status.terminal:
                 yield f"event: end\ndata: {json.dumps({'status': run.status.value if run else 'missing'})}\n\n"
                 break
-            idle_ticks += 1
+            if batch:
+                idle_ticks = 0
+            else:
+                idle_ticks += 1
             if idle_ticks % 20 == 0:
                 yield ": keep-alive\n\n"
             await asyncio.sleep(0.5)
