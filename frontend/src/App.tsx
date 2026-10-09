@@ -42,6 +42,17 @@ const statusLabel: Record<RunStatus, string> = {
   failed: '失败',
 }
 
+
+type StreamStatus = 'connecting' | 'live' | 'reconnecting' | 'closed'
+
+const streamStatusLabel: Record<StreamStatus, string> = {
+  connecting: '连接中',
+  live: '实时',
+  reconnecting: '正在重连',
+  closed: '已结束',
+}
+
+
 function StatusIcon({ status }: { status: RunStatus }) {
   if (status === 'completed' || status === 'completed_local') return <CheckCircle2 size={16} />
   if (status === 'failed' || status === 'rejected') return <AlertTriangle size={16} />
@@ -59,6 +70,8 @@ function App() {
   const [showCreate, setShowCreate] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [streamStatus, setStreamStatus] = useState<StreamStatus>('connecting')
+
 
   const refreshList = useCallback(async () => {
     try {
@@ -97,6 +110,9 @@ function App() {
     if (!selectedId) return
     api.getRun(selectedId).then(setSelected).catch((err: Error) => setError(err.message))
     const source = new EventSource(`${API_BASE}/runs/${selectedId}/events`)
+    source.onopen = () => setStreamStatus('live')
+    source.onerror = () => setStreamStatus('reconnecting')
+
     const receive = (event: MessageEvent) => {
       try {
         const parsed = JSON.parse(event.data) as RunEvent
@@ -111,6 +127,7 @@ function App() {
       (name) => source.addEventListener(name, receive),
     )
     source.addEventListener('end', () => {
+      setStreamStatus('closed')
       source.close()
       void refreshSelected()
       void refreshList()
@@ -129,6 +146,7 @@ function App() {
     setError('')
     try {
       const run = await api.createRun(payload)
+      setStreamStatus('connecting')
       setSelectedId(run.run_id)
       setShowCreate(false)
       await refreshList()
@@ -167,7 +185,7 @@ function App() {
             <button
               key={run.run_id}
               className={`run-item ${selectedId === run.run_id ? 'active' : ''}`}
-              onClick={() => { setEvents([]); setSelectedId(run.run_id); setShowCreate(false) }}
+              onClick={() => { setEvents([]); setSelectedId(run.run_id); setShowCreate(false); setStreamStatus('connecting') }}
             >
               <StatusIcon status={run.status} />
               <span><strong>{repoName(run.repo_url)}</strong><small>{statusLabel[run.status]}</small></span>
@@ -190,7 +208,7 @@ function App() {
         </header>
         {error && <div className="error-banner"><AlertTriangle size={17} />{error}<button onClick={() => setError('')}><X size={15} /></button></div>}
         {showCreate ? <CreateRun busy={busy} onSubmit={handleCreate} /> : selected ? (
-          <RunDetail key={`${selected.run_id}-${selected.attempt_count}-${selected.approval_stage}`} run={selected} events={events} busy={busy} onDecision={decide} onCancel={async () => { await api.cancel(selected.run_id); await refreshSelected() }} />
+          <RunDetail key={`${selected.run_id}-${selected.attempt_count}-${selected.approval_stage}`} run={selected} events={events} busy={busy} onDecision={decide} onCancel={async () => { await api.cancel(selected.run_id); await refreshSelected() }} streamStatus={streamStatus} />
         ) : <div className="empty-state"><Code2 size={44} /><h2>选择或创建一个修复任务</h2></div>}
       </main>
     </div>
@@ -222,7 +240,7 @@ function CreateRun({ busy, onSubmit }: { busy: boolean; onSubmit: (payload: { re
   )
 }
 
-function RunDetail({ run, events, busy, onDecision, onCancel }: { run: RunRecord; events: RunEvent[]; busy: boolean; onDecision: (decision: 'approve' | 'reject', patch?: string) => Promise<void>; onCancel: () => Promise<void> }) {
+function RunDetail({ run, events, busy, onDecision, onCancel, streamStatus }: { run: RunRecord; events: RunEvent[]; busy: boolean; onDecision: (decision: 'approve' | 'reject', patch?: string) => Promise<void>; onCancel: () => Promise<void>; streamStatus: StreamStatus }) {
   const [editedPatch, setEditedPatch] = useState(run.patch)
   const progress = useMemo(() => statusProgress(run.status), [run.status])
   return (
@@ -255,7 +273,7 @@ function RunDetail({ run, events, busy, onDecision, onCancel }: { run: RunRecord
           {run.error && <div className="error-card"><AlertTriangle size={20} /><div><strong>运行未完成</strong><p>{run.error}</p></div></div>}
         </div>
         <aside className="timeline-column">
-          <Panel title="执行轨迹" icon={<Activity size={18} />}>
+          <Panel title="执行轨迹" icon={<Activity size={18} />} badge={<span className={`stream-status ${streamStatus}`}>{streamStatusLabel[streamStatus]}</span>}>
             <div className="timeline">
               {events.map((event) => <div className={`timeline-event ${event.level}`} key={event.id}><span /><div><strong>{event.message}</strong><small>{new Date(event.created_at).toLocaleTimeString()}</small></div></div>)}
               {!events.length && <p className="empty-small">等待事件……</p>}
@@ -270,8 +288,8 @@ function RunDetail({ run, events, busy, onDecision, onCancel }: { run: RunRecord
   )
 }
 
-function Panel({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
-  return <section className="panel"><div className="panel-title">{icon}<h2>{title}</h2></div><div className="panel-body">{children}</div></section>
+function Panel({ title, icon, badge, children }: { title: string; icon: React.ReactNode; badge?: React.ReactNode; children: React.ReactNode }) {
+  return <section className="panel"><div className="panel-title">{icon}<h2>{title}</h2>{badge}</div><div className="panel-body">{children}</div></section>
 }
 
 function repoName(url: string) { return url.replace(/\/$/, '').split('/').slice(-2).join('/') }
