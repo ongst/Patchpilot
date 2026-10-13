@@ -83,3 +83,18 @@ export interface Health {
   ready_for_push: boolean
 }
 
+export interface DiffFileSummary {
+  path: string
+  additions: number
+  deletions: number
+}
+
+export interface DiffResponse {
+  run_id: string
+  patch: string
+  files: DiffFileSummary[]
+  additions: number
+  deletions: number
+  changed_lines: number
+}
+

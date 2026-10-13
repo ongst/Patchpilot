@@ -9,7 +9,15 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from patchpilot import __version__
-from patchpilot.models import DecisionRequest, HealthResponse, RunCreate, RunEvent, RunRecord
+from patchpilot.models import (
+    DecisionRequest,
+    DiffResponse,
+    HealthResponse,
+    RunCreate,
+    RunEvent,
+    RunRecord,
+)
+from patchpilot.patching import parse_patch_summary
 
 router = APIRouter(prefix="/api")
 
@@ -77,10 +85,20 @@ def get_run(run_id: str, request: Request) -> RunRecord:
     return run
 
 
-@router.get("/runs/{run_id}/diff")
-def get_diff(run_id: str, request: Request) -> dict[str, str]:
+@router.get("/runs/{run_id}/diff", response_model=DiffResponse)
+def get_diff(run_id: str, request: Request) -> DiffResponse:
     run = get_run(run_id, request)
-    return {"run_id": run_id, "patch": run.patch}
+    files = parse_patch_summary(run.patch)
+    additions = sum(f.additions for f in files)
+    deletions = sum(f.deletions for f in files)
+    return DiffResponse(
+        run_id=run_id,
+        patch=run.patch,
+        files=files,
+        additions=additions,
+        deletions=deletions,
+        changed_lines=additions + deletions,
+    )
 
 
 @router.post("/runs/{run_id}/decisions", response_model=RunRecord, status_code=202)

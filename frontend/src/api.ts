@@ -1,4 +1,4 @@
-import type { ApprovalStage, Health, RunRecord } from './types'
+import type { ApprovalStage, Health, DiffResponse, RunRecord } from './types'
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8000/api'
 
@@ -34,5 +34,6 @@ export const api = {
       body: JSON.stringify({ stage, decision, edited_patch: editedPatch || null }),
     }),
   cancel: (runId: string) => request<RunRecord>(`/runs/${runId}/cancel`, { method: 'POST' }),
+  getDiff: (runId: string) => request<DiffResponse>(`/runs/${runId}/diff`),
 }
 

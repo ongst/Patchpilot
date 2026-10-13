@@ -136,3 +136,18 @@ class HealthResponse(BaseModel):
     version: str
     ready_for_repair: bool
     ready_for_push: bool
+
+
+class DiffFileSummary(BaseModel):
+    path: str
+    additions: int = 0
+    deletions: int = 0
+
+
+class DiffResponse(BaseModel):
+    run_id: str
+    patch: str
+    files: list[DiffFileSummary]
+    additions: int
+    deletions: int
+    changed_lines: int

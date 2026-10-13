@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 from patchpilot.git_service import GitService
-from patchpilot.patching import validate_patch, validate_patch_structure
+from patchpilot.patching import parse_patch_summary, validate_patch, validate_patch_structure
 from patchpilot.security import SecurityError
 
 
@@ -80,3 +80,39 @@ def test_git_rejects_write_on_default_branch(tmp_path: Path):
     subprocess.run(["git", "switch", "main"], cwd=tmp_path, check=True, capture_output=True)
     with pytest.raises(SecurityError):
         git.apply_check(tmp_path, good_patch())
+
+
+def test_parse_patch_summary_single_file():
+    files = parse_patch_summary(good_patch())
+    assert len(files) == 1
+    assert files[0].path == "app.py"
+    assert files[0].additions == 1
+    assert files[0].deletions == 1
+
+
+def test_parse_patch_summary_multiple_files():
+    patch = """diff --git a/a.py b/a.py
+--- a/a.py
++++ b/a.py
+@@ -1 +1 @@
+-old
++new
+
+diff --git a/b.py b/b.py
+--- a/b.py
++++ b/b.py
+@@ -1,2 +1 @@
+-line1
+-line2
++newline
+"""
+    files = parse_patch_summary(patch)
+    assert [f.path for f in files] == ["a.py", "b.py"]
+    assert files[0].additions == 1
+    assert files[0].deletions == 1
+    assert files[1].additions == 1
+    assert files[1].deletions == 2
+
+
+def test_parse_patch_summary_empty():
+    assert parse_patch_summary("") == []

@@ -12,7 +12,7 @@ PatchPilot 是一个面向公开 Python 与 npm 仓库的代码修复 Agent。�
 - 补丁应用与远端推送的两次人工审批；
 - Python 3.12 和 Node.js 22 Docker 测试器；
 - 失败测试驱动的最多两轮增量修复；
-- React Web 控制台、SSE 实时轨迹和可编辑 Diff；
+- React Web 控制台、SSE 实时轨迹和结构化 Diff 审阅（按文件展示与增删行统计，审批前可编辑原始补丁）；
 - 12 个带隐藏测试的评测任务。
 
 ## 架构

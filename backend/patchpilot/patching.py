@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from patchpilot.git_service import GitService
+from patchpilot.models import DiffFileSummary
 from patchpilot.security import SecurityError, is_ignored, safe_repo_path
 
 DIFF_PATH = re.compile(r"^diff --git a/(.+) b/(.+)$")
@@ -70,3 +71,23 @@ def validate_patch(
     )
     git.apply_check(repo, patch)
     return summary
+
+
+def parse_patch_summary(patch: str) -> list[DiffFileSummary]:
+    files: dict[str, DiffFileSummary] = {}
+    current_file: DiffFileSummary | None = None
+    for line in patch.splitlines():
+        match = DIFF_PATH.match(line)
+        if match:
+            if current_file:
+                files[current_file.path] = current_file
+            left, right = match.groups()
+            current_file = DiffFileSummary(path=right if right != "/dev/null" else left)
+
+        elif current_file and line.startswith("+") and not line.startswith("+++"):
+            current_file.additions += 1
+        elif current_file and line.startswith("-") and not line.startswith("---"):
+            current_file.deletions += 1
+    if current_file:
+        files[current_file.path] = current_file
+    return list(files.values())

@@ -17,7 +17,8 @@ import {
   X,
 } from 'lucide-react'
 import { API_BASE, api } from './api'
-import type { Health, RunEvent, RunRecord, RunStatus } from './types'
+import DiffViewer from './components/DiffViewer'
+import type { DiffResponse, Health, RunEvent, RunRecord, RunStatus } from './types'
 
 const terminal = new Set<RunStatus>(['completed', 'completed_local', 'rejected', 'cancelled', 'failed'])
 
@@ -243,6 +244,14 @@ function CreateRun({ busy, onSubmit }: { busy: boolean; onSubmit: (payload: { re
 function RunDetail({ run, events, busy, onDecision, onCancel, streamStatus }: { run: RunRecord; events: RunEvent[]; busy: boolean; onDecision: (decision: 'approve' | 'reject', patch?: string) => Promise<void>; onCancel: () => Promise<void>; streamStatus: StreamStatus }) {
   const [editedPatch, setEditedPatch] = useState(run.patch)
   const progress = useMemo(() => statusProgress(run.status), [run.status])
+  const [diff, setDiff] = useState<DiffResponse | null>(null)
+  const [diffMode, setDiffMode] = useState<'review' | 'edit'>('review')
+
+
+  useEffect(() => {
+    if (!run.patch) return
+    api.getDiff(run.run_id).then(setDiff).catch(() => setDiff(null))
+  }, [run.run_id, run.patch])
   return (
     <div className="run-detail">
       <section className="summary-strip">
@@ -261,9 +270,39 @@ function RunDetail({ run, events, busy, onDecision, onCancel, streamStatus }: { 
             <ol>{run.repair_plan.steps.map((step) => <li key={step}>{step}</li>)}</ol>
             {!!run.repair_plan.risks.length && <div className="risk"><AlertTriangle size={16} /><span>{run.repair_plan.risks.join('；')}</span></div>}
           </Panel>}
-          {run.patch && <Panel title="Unified Diff" icon={<GitBranch size={18} />}>
-            {run.approval_stage === 'apply_patch' ? <textarea className="diff-editor" value={editedPatch} onChange={(e) => setEditedPatch(e.target.value)} spellCheck={false} /> : <pre className="diff-view">{run.patch}</pre>}
-          </Panel>}
+          {run.patch && (
+            <Panel
+              title="Unified Diff"
+              icon={<GitBranch size={18} />}
+              badge={run.approval_stage === 'apply_patch' ? (
+                <button className="diff-toggle" onClick={() => setDiffMode((mode) => (mode === 'review' ? 'edit' : 'review'))}>
+                  {diffMode === 'review' ? '编辑原始 Diff' : '查看结构化 Diff'}
+                </button>
+              ) : undefined}
+            >
+              {diff && (
+                <div className="diff-summary">
+                  <strong>{diff.files.length} 个文件</strong>
+                  <span className="diff-add">+{diff.additions}</span>
+                  <span className="diff-del">-{diff.deletions}</span>
+                  <ul>
+                    {diff.files.map((file) => (
+                      <li key={file.path}>
+                        <span className="mono">{file.path}</span>
+                        <span className="diff-add">+{file.additions}</span>
+                        <span className="diff-del">-{file.deletions}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {run.approval_stage === 'apply_patch' && diffMode === 'edit' ? (
+                <textarea className="diff-editor" value={editedPatch} onChange={(e) => setEditedPatch(e.target.value)} spellCheck={false} />
+              ) : (
+                <DiffViewer patch={run.patch} />
+              )}
+            </Panel>
+          )}
           {(run.baseline_result || run.test_result) && <Panel title="测试" icon={<CheckCircle2 size={18} />}>
             {[run.baseline_result, run.test_result].filter(Boolean).map((result) => result && <div className={`test-result ${result.passed ? 'pass' : 'fail'}`} key={result.phase}>
               <div><strong>{result.phase === 'baseline' ? '基线' : '修复后'}</strong><code>{result.command}</code><span>{result.skipped_reason ?? (result.passed ? 'PASS' : `EXIT ${result.exit_code}`)}</span></div>
