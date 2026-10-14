@@ -9,13 +9,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from patchpilot.api import router
 from patchpilot.config import get_settings
 from patchpilot.db import RunStore
+from patchpilot.models import RunStatus
 from patchpilot.service import RunService
 from patchpilot.workflow import WorkflowEngine
+
+
+def recover_interrupted_runs(store: RunStore) -> None:
+    for run in store.list_non_terminal_runs():
+        if run.status in (RunStatus.AWAITING_PATCH_APPROVAL, RunStatus.AWAITING_PUSH_APPROVAL):
+            continue  # 审批等待任务保留，checkpoint 可在审批后继续恢复
+        store.update_run(run.run_id, error="服务重启中断了正在执行的步骤，请创建新任务重试。")
+        store.set_status(run.run_id, RunStatus.FAILED, "服务重启中断，任务已标记为失败")
+        store.add_event(run.run_id, "error", "recovery", "服务重启中断了正在执行的步骤，请创建新任务重试。")
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
     store = RunStore(settings.database_path)
+    recover_interrupted_runs(store)
     workflow = WorkflowEngine(settings, store)
     service = RunService(settings, store, workflow)
 

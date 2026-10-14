@@ -19,6 +19,10 @@ from patchpilot.repo_tools import RepositoryTools
 from patchpilot.test_runner import DockerTestRunner
 
 
+class RunCancelledError(RuntimeError):
+    """用户取消任务后，在工作流安全点抛出的专用异常。"""
+
+
 class WorkflowState(TypedDict, total=False):
     run_id: str
     repo_url: str
@@ -111,7 +115,8 @@ class WorkflowEngine:
         if run is None:
             raise RuntimeError("Run record disappeared")
         if run.status == RunStatus.CANCELLED:
-            raise RuntimeError("Run was cancelled")
+            raise RunCancelledError(run_id)
+
 
     def _status(self, run_id: str, status: RunStatus, message: str) -> None:
         self._ensure_active(run_id)
@@ -151,6 +156,7 @@ class WorkflowEngine:
             state.get("test_command"),
             "baseline",
         )
+        self._ensure_active(run_id)
         self.store.update_run(run_id, baseline_result=result)
         self.store.add_event(
             run_id,
@@ -179,6 +185,7 @@ class WorkflowEngine:
             self.git.diff(workspace),
             attempt,
         )
+        self._ensure_active(run_id)
         total_tokens = int(state.get("token_usage", 0)) + proposal.token_usage
         plan = proposal.proposal.plan.model_dump()
         self.store.update_run(
@@ -257,7 +264,9 @@ class WorkflowEngine:
             max_files=self.settings.max_patch_files,
             max_changed_lines=self.settings.max_patch_lines,
         )
+        self._ensure_active(run_id)
         self.git.apply_patch(workspace, state["patch"])
+        self._ensure_active(run_id)
         complete_diff = self.git.diff(workspace)
         self.store.update_run(run_id, patch=complete_diff)
         self.store.add_event(run_id, "info", "patch_applied", "补丁已应用到隔离分支")
@@ -272,6 +281,7 @@ class WorkflowEngine:
             state.get("test_command"),
             "post_patch",
         )
+        self._ensure_active(run_id)
         self.store.update_run(
             run_id, test_result=result, patch=self.git.diff(Path(state["workspace"]))
         )
@@ -325,9 +335,11 @@ class WorkflowEngine:
             raise RuntimeError("PATCHPILOT_GITHUB_TOKEN is required before final push approval")
         workspace = Path(state["workspace"])
         self._status(run_id, RunStatus.COMMITTING, "正在创建 Git 提交")
+        self._ensure_active(run_id)
         commit_sha = self.git.commit(workspace, run_id)
         self.store.update_run(run_id, commit_sha=commit_sha)
         self._status(run_id, RunStatus.PUSHING, "正在推送新的 patchpilot 分支")
+        self._ensure_active(run_id)
         remote_branch = self.git.push(workspace)
         self.store.update_run(run_id, remote_branch=remote_branch)
         self.store.set_status(run_id, RunStatus.COMPLETED, "修复分支已安全推送")

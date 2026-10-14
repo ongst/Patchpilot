@@ -172,6 +172,24 @@ function App() {
     }
   }
 
+
+  async function handleCancel() {
+    if (!selected) return
+    if (!window.confirm('确定要取消这个任务吗？取消不会删除运行记录和工作区，任务将在当前步骤结束后的安全位置停止。')) return
+    setBusy(true)
+    setError('')
+    try {
+      await api.cancel(selected.run_id)
+      await refreshSelected()
+      await refreshList()
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -209,7 +227,7 @@ function App() {
         </header>
         {error && <div className="error-banner"><AlertTriangle size={17} />{error}<button onClick={() => setError('')}><X size={15} /></button></div>}
         {showCreate ? <CreateRun busy={busy} onSubmit={handleCreate} /> : selected ? (
-          <RunDetail key={`${selected.run_id}-${selected.attempt_count}-${selected.approval_stage}`} run={selected} events={events} busy={busy} onDecision={decide} onCancel={async () => { await api.cancel(selected.run_id); await refreshSelected() }} streamStatus={streamStatus} />
+          <RunDetail key={`${selected.run_id}-${selected.attempt_count}-${selected.approval_stage}`} run={selected} events={events} busy={busy} onDecision={decide} onCancel={handleCancel} streamStatus={streamStatus} />
         ) : <div className="empty-state"><Code2 size={44} /><h2>选择或创建一个修复任务</h2></div>}
       </main>
     </div>
@@ -322,7 +340,7 @@ function RunDetail({ run, events, busy, onDecision, onCancel, streamStatus }: { 
         </aside>
       </div>
       {run.approval_stage !== 'none' && <div className="approval-bar"><div><ShieldCheck size={22} /><span><strong>{run.approval_stage === 'apply_patch' ? '是否应用这份补丁？' : '是否提交并推送这个新分支？'}</strong><small>这是一个需要人工确认的高影响操作。</small></span></div><div><button className="reject" disabled={busy} onClick={() => void onDecision('reject')}>拒绝</button><button className="approve" disabled={busy} onClick={() => void onDecision('approve', run.approval_stage === 'apply_patch' ? editedPatch : undefined)}><Check size={17} />批准</button></div></div>}
-      {!terminal.has(run.status) && run.approval_stage === 'none' && <button className="cancel-run" onClick={() => void onCancel()}>取消运行</button>}
+      {!terminal.has(run.status) && run.approval_stage === 'none' && <button className="cancel-run" disabled={busy} onClick={() => void onCancel()}>{busy ? '取消中…' : '取消运行'}</button>}
     </div>
   )
 }

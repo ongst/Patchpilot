@@ -11,7 +11,7 @@ from patchpilot.config import Settings
 from patchpilot.db import RunStore
 from patchpilot.models import ApprovalStage, DecisionRequest, RunCreate, RunRecord, RunStatus
 from patchpilot.security import validate_repo_url
-from patchpilot.workflow import WorkflowEngine
+from patchpilot.workflow import RunCancelledError, WorkflowEngine
 
 
 class RunService:
@@ -77,6 +77,8 @@ class RunService:
         def worker() -> None:
             try:
                 self.workflow.graph.invoke(graph_input, config=self.workflow.config_for(run_id))
+            except RunCancelledError:
+                pass
             except Exception as error:
                 run = self.store.get_run(run_id)
                 if run and run.status != RunStatus.CANCELLED:

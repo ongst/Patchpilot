@@ -102,6 +102,18 @@ class RunStore:
             ).fetchall()
         return [RunRecord.model_validate_json(row["payload"]) for row in rows]
 
+
+    def list_non_terminal_runs(self) -> list[RunRecord]:
+        terminal = [s.value for s in RunStatus if s.terminal]
+        placeholders = ",".join("?" * len(terminal))
+        with self._connection() as connection:
+            rows = connection.execute(
+                f"SELECT payload FROM runs WHERE status NOT IN ({placeholders}) ORDER BY created_at",
+                terminal,
+            ).fetchall()
+        return [RunRecord.model_validate_json(row["payload"]) for row in rows]
+
+
     def update_run(self, run_id: str, **changes: Any) -> RunRecord:
         with self._lock:
             run = self.get_run(run_id)
