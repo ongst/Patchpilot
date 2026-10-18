@@ -74,7 +74,11 @@ class FakeGit(GitService):
 
     def clone_and_branch(self, repo_url, destination, run_id):
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(FIXTURE, destination)
+        shutil.copytree(
+            FIXTURE,
+            destination,
+            ignore=shutil.ignore_patterns(".pytest_cache", "__pycache__", "*.pyc"),
+        )
         subprocess.run(["git", "init", "-b", "main"], cwd=destination, check=True, capture_output=True)
         subprocess.run(["git", "add", "-A"], cwd=destination, check=True)
         subprocess.run(
