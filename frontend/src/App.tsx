@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { API_BASE, api } from './api'
 import DiffViewer from './components/DiffViewer'
-import type { DiffResponse, Health, RunEvent, RunRecord, RunStatus } from './types'
+import type { DiffResponse, Health, RunEvent, RunRecord, RunReport, RunStatus } from './types'
 
 const terminal = new Set<RunStatus>(['completed', 'completed_local', 'rejected', 'cancelled', 'failed'])
 
@@ -264,12 +264,17 @@ function RunDetail({ run, events, busy, onDecision, onCancel, streamStatus }: { 
   const progress = useMemo(() => statusProgress(run.status), [run.status])
   const [diff, setDiff] = useState<DiffResponse | null>(null)
   const [diffMode, setDiffMode] = useState<'review' | 'edit'>('review')
-
+  const [report, setReport] = useState<RunReport | null>(null)
 
   useEffect(() => {
     if (!run.patch) return
     api.getDiff(run.run_id).then(setDiff).catch(() => setDiff(null))
   }, [run.run_id, run.patch])
+
+  useEffect(() => {
+    if (!terminal.has(run.status)) return
+    api.getReport(run.run_id).then(setReport).catch(() => setReport(null))
+  }, [run.run_id, run.status])
   return (
     <div className="run-detail">
       <section className="summary-strip">
@@ -328,6 +333,23 @@ function RunDetail({ run, events, busy, onDecision, onCancel, streamStatus }: { 
             </div>)}
           </Panel>}
           {run.error && <div className="error-card"><AlertTriangle size={20} /><div><strong>运行未完成</strong><p>{run.error}</p></div></div>}
+          {report && (
+            <Panel title="最终报告" icon={<FileCode2 size={18} />}>
+              <div className="report-card">
+                <div className="report-row"><span>最终状态</span><strong className={`status-pill ${report.status}`}><StatusIcon status={report.status} /> {statusLabel[report.status]}</strong></div>
+                <div className="report-row"><span>修改文件</span><strong>{report.changed_files.length} 个（+{report.additions} / -{report.deletions}）</strong></div>
+                {report.baseline_result && <div className="report-row"><span>基线测试</span><strong>{report.baseline_result.passed ? 'PASS' : 'FAIL'}</strong></div>}
+                {report.test_result && <div className="report-row"><span>修复后测试</span><strong>{report.test_result.passed ? 'PASS' : 'FAIL'}</strong></div>}
+                <div className="report-row"><span>尝试次数</span><strong>{report.attempt_count}</strong></div>
+                <div className="report-row"><span>Token</span><strong>{report.token_usage.toLocaleString()}</strong></div>
+                <div className="report-row"><span>总耗时</span><strong>{report.duration_seconds.toFixed(1)}s</strong></div>
+                {report.commit_sha && <div className="report-row"><span>提交</span><strong className="mono">{report.commit_sha.slice(0, 8)}</strong></div>}
+                {report.remote_branch && <div className="report-row"><span>远端分支</span><strong className="mono">{report.remote_branch}</strong></div>}
+                {report.error && <div className="report-row report-error"><span>原因</span><strong>{report.error}</strong></div>}
+              </div>
+              <button className="report-export" onClick={() => exportReport(report)}>导出报告</button>
+            </Panel>
+          )}
         </div>
         <aside className="timeline-column">
           <Panel title="执行轨迹" icon={<Activity size={18} />} badge={<span className={`stream-status ${streamStatus}`}>{streamStatusLabel[streamStatus]}</span>}>
@@ -356,6 +378,35 @@ function statusProgress(status: RunStatus) {
   if (terminal.has(status)) return status === 'completed' || status === 'completed_local' ? 100 : 92
   const index = steps.indexOf(status === 'repairing' ? 'planning' : status)
   return Math.max(4, ((index + 1) / steps.length) * 100)
+}
+
+function exportReport(report: RunReport) {
+  const lines = [
+    '# PatchPilot Run Report',
+    '',
+    `- Run ID: ${report.run_id}`,
+    `- Status: ${report.status}`,
+    `- Repository: ${report.repo_url}`,
+    `- Duration: ${report.duration_seconds.toFixed(1)}s`,
+    `- Attempts: ${report.attempt_count}`,
+    `- Token usage: ${report.token_usage}`,
+    '',
+    '## Patch',
+    ...report.changed_files.map((f) => `- ${f.path}: +${f.additions} / -${f.deletions}`),
+    '',
+    '## Tests',
+    `- Baseline: ${report.baseline_result ? (report.baseline_result.passed ? 'passed' : 'failed') : 'not run'}`,
+    `- Post patch: ${report.test_result ? (report.test_result.passed ? 'passed' : 'failed') : 'not run'}`,
+    '',
+  ]
+  const markdown = lines.join('\n')
+  const blob = new Blob([markdown], { type: 'text/markdown' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `patchpilot-report-${report.run_id.slice(0, 8)}.md`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 export default App

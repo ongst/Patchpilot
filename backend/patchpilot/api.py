@@ -16,8 +16,10 @@ from patchpilot.models import (
     RunCreate,
     RunEvent,
     RunRecord,
+    RunReport,
 )
 from patchpilot.patching import parse_patch_summary
+from patchpilot.reporting import build_run_report
 
 router = APIRouter(prefix="/api")
 
@@ -99,6 +101,14 @@ def get_diff(run_id: str, request: Request) -> DiffResponse:
         deletions=deletions,
         changed_lines=additions + deletions,
     )
+
+
+@router.get("/runs/{run_id}/report", response_model=RunReport)
+def get_report(run_id: str, request: Request) -> RunReport:
+    run = get_run(run_id, request)
+    if not run.status.terminal:
+        raise HTTPException(status_code=409, detail="Run is not finished yet")
+    return build_run_report(run)
 
 
 @router.post("/runs/{run_id}/decisions", response_model=RunRecord, status_code=202)

@@ -117,6 +117,32 @@ class RunRecord(BaseModel):
     finished_at: datetime | None = None
 
 
+class RunReport(BaseModel):
+    run_id: str
+    status: RunStatus
+    repo_url: str
+    issue_text: str
+    language: Language
+    branch_name: str
+
+    plan_summary: str = ""
+    inspected_file_count: int = 0
+    changed_files: list[DiffFileSummary] = []
+    additions: int = 0
+    deletions: int = 0
+
+    attempt_count: int = 0
+    baseline_result: TestResult | None = None
+    test_result: TestResult | None = None
+
+    token_usage: int = 0
+    duration_seconds: float = 0.0
+
+    commit_sha: str = ""
+    remote_branch: str = ""
+    error: str = ""
+
+
 class RunEvent(BaseModel):
     id: int
     run_id: str

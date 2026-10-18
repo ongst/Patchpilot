@@ -91,6 +91,7 @@ powershell -ExecutionPolicy Bypass -File scripts\check.ps1
 | `GET` | `/api/runs/{id}` | 获取当前状态 |
 | `GET` | `/api/runs/{id}/events` | SSE 执行轨迹 |
 | `GET` | `/api/runs/{id}/diff` | 获取统一 Diff |
+| `GET` | `/api/runs/{id}/report` | 最终运行报告 |
 | `POST` | `/api/runs/{id}/decisions` | 批准、拒绝或编辑补丁 |
 | `POST` | `/api/runs/{id}/cancel` | 取消任务 |
 
@@ -113,6 +114,13 @@ powershell -ExecutionPolicy Bypass -File scripts\check.ps1
 
 - 支持 `after` 查询参数和 `Last-Event-ID` 请求头两种续传游标，断线重连后只返回尚未接收的事件；
 - 任务进入终态后会发送 `end` 事件并自动关闭连接。
+
+### 最终报告
+
+`GET /api/runs/{id}/report` 为终态任务返回结构化最终报告（非终态返回 409）：
+
+- 汇总修复结果、补丁规模与增删行、测试、重试次数、Token 用量和总耗时；
+- 报告只包含 `token_usage` 数字，不包含任何真实密钥。
 
 ## 当前限制
 

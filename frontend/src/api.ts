@@ -1,4 +1,4 @@
-import type { ApprovalStage, Health, DiffResponse, RunRecord } from './types'
+import type { ApprovalStage, Health, DiffResponse, RunRecord, RunReport } from './types'
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8000/api'
 
@@ -20,6 +20,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<Health>('/health'),
   listRuns: () => request<RunRecord[]>('/runs'),
+  getReport: (runId: string) => request<RunReport>(`/runs/${runId}/report`),
   getRun: (runId: string) => request<RunRecord>(`/runs/${runId}`),
   createRun: (payload: { repo_url: string; issue_text: string; test_command?: string }) =>
     request<RunRecord>('/runs', { method: 'POST', body: JSON.stringify(payload) }),

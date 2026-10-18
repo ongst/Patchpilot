@@ -98,3 +98,24 @@ export interface DiffResponse {
   changed_lines: number
 }
 
+export interface RunReport {
+  run_id: string
+  status: RunStatus
+  repo_url: string
+  issue_text: string
+  language: 'python' | 'javascript' | 'unknown'
+  branch_name: string
+  plan_summary: string
+  inspected_file_count: number
+  changed_files: DiffFileSummary[]
+  additions: number
+  deletions: number
+  attempt_count: number
+  baseline_result: TestResult | null
+  test_result: TestResult | null
+  token_usage: number
+  duration_seconds: number
+  commit_sha: string
+  remote_branch: string
+  error: string
+}
