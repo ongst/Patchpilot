@@ -82,6 +82,16 @@ powershell -ExecutionPolicy Bypass -File scripts\check.ps1
 
 该命令依次运行 Ruff、pytest、前端 ESLint 和生产构建。
 
+### 端到端集成测试
+
+项目包含一条不依赖网络、真实模型或 Docker 的确定性黄金路径测试：
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest backend/tests/test_workflow_e2e.py -v
+```
+
+它使用 `eval/fixtures/python_calculator` 固定缺陷样例和 Fake LLM / Git / Runner 替身，完整验证「创建任务 → 分析 → 补丁审批 → 应用 → 测试 → 推送审批 → 最终报告」主流程。
+
 ## API
 
 | 方法 | 路径 | 用途 |

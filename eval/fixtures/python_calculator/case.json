@@ -1,0 +1,7 @@
+{
+  "case_id": "python-add-001",
+  "issue_text": "add(a, b) incorrectly subtracts b instead of adding it",
+  "test_command": "python -m pytest -q",
+  "expected_files": ["calculator.py"],
+  "expected_status": "completed_local"
+}
