@@ -287,6 +287,7 @@ queued
 - [三分钟演示脚本](docs/demo-script.md)
 - [简历描述](docs/resume.md)
 - [评测协议](docs/evaluation.md)
+- [首次真实本地闭环运行](docs/runs/day09-python-local.md)
 
 ## English summary
 
