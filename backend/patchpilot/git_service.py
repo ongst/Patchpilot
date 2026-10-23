@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import os
 import re
 import subprocess
@@ -41,11 +42,12 @@ class GitService:
         if authenticated:
             if not self.github_token:
                 raise SecurityError("PATCHPILOT_GITHUB_TOKEN is required to push")
+            auth = base64.b64encode(f"x-access-token:{self.github_token}".encode()).decode()
             environment.update(
                 {
                     "GIT_CONFIG_COUNT": "1",
                     "GIT_CONFIG_KEY_0": "http.https://github.com/.extraheader",
-                    "GIT_CONFIG_VALUE_0": f"AUTHORIZATION: bearer {self.github_token}",
+                    "GIT_CONFIG_VALUE_0": f"AUTHORIZATION: basic {auth}",
                 }
             )
         completed = subprocess.run(
