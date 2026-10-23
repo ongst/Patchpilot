@@ -288,6 +288,7 @@ queued
 - [简历描述](docs/resume.md)
 - [评测协议](docs/evaluation.md)
 - [首次真实本地闭环运行](docs/runs/day09-python-local.md)
+- [首次真实远端推送](docs/runs/day10-python-push.md)
 
 ## English summary
 
