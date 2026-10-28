@@ -29,7 +29,7 @@ def py_task(task_id: str, issue: str, module: str, hidden_test: str) -> EvalTask
         language="python",
         issue=issue,
         files={
-            "pyproject.toml": PYPROJECT,
+            "requirements.txt": "# No runtime dependencies.\n",
             "src/app.py": module,
             "tests/test_smoke.py": "def test_import():\n    import src.app\n",
         },

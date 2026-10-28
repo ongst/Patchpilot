@@ -47,12 +47,48 @@ index 6fc75a1..6c5e0df 100644
 """
 
 
+def trailing_whitespace_patch() -> str:
+    # LLM-generated diffs often carry trailing whitespace on blank and code
+    # lines; the patch must still validate and apply with whitespace stripped.
+    lines = [
+        "+from src.app import clamp ",
+        "+ ",
+        "+def test_clamp(): ",
+        "+    assert clamp(4, 0, 10) == 4 ",
+        "+ ",
+    ]
+    header = f"@@ -0,0 +1,{len(lines)} @@"
+    return (
+        "\n".join(
+            [
+                "diff --git a/tests/test_clamp.py b/tests/test_clamp.py",
+                "new file mode 100644",
+                "--- /dev/null",
+                "+++ b/tests/test_clamp.py",
+                header,
+                *lines,
+            ]
+        )
+        + "\n"
+    )
+
+
 def test_patch_validation_and_application(tmp_path: Path):
     git = init_repo(tmp_path)
     summary = validate_patch(git, tmp_path, good_patch(), max_files=8, max_changed_lines=800)
     assert summary.files == ["app.py"]
     git.apply_patch(tmp_path, good_patch())
     assert "a + b" in (tmp_path / "app.py").read_text(encoding="utf-8")
+
+
+def test_patch_strips_trailing_whitespace(tmp_path: Path):
+    git = init_repo(tmp_path)
+    patch = trailing_whitespace_patch()
+    git.apply_check(tmp_path, patch)  # trailing whitespace must not fail validation
+    git.apply_patch(tmp_path, patch)
+    content = (tmp_path / "tests" / "test_clamp.py").read_text(encoding="utf-8")
+    assert "assert clamp(4, 0, 10) == 4" in content
+    assert all(line == line.rstrip() for line in content.splitlines())
 
 
 def test_patch_rejects_path_escape(tmp_path: Path):

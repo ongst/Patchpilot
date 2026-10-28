@@ -222,6 +222,10 @@ Inspect the repository before proposing a patch.
         if cleaned.startswith("```"):
             cleaned = cleaned.split("\n", 1)[-1]
             cleaned = cleaned.rsplit("```", 1)[0]
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start != -1 and end > start:
+            cleaned = cleaned[start : end + 1]
         try:
             return RepairProposal.model_validate_json(cleaned)
         except ValidationError as error:

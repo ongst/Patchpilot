@@ -73,7 +73,7 @@ class DockerTestRunner:
                     command=command.display,
                     exit_code=setup.returncode,
                     passed=False,
-                    output=self._clip(setup.stdout + setup.stderr),
+                    output=self._clip((setup.stdout or "") + (setup.stderr or "")),
                     duration_seconds=time.monotonic() - started,
                     phase=phase,
                 )
@@ -82,7 +82,7 @@ class DockerTestRunner:
                 command=command.display,
                 exit_code=result.returncode,
                 passed=result.returncode == 0,
-                output=self._clip(result.stdout + result.stderr),
+                output=self._clip((result.stdout or "") + (result.stderr or "")),
                 duration_seconds=time.monotonic() - started,
                 phase=phase,
             )
@@ -117,7 +117,12 @@ class DockerTestRunner:
         ]
 
     def _setup_dependencies(self, repo: Path, language: Language, volume: str):
-        mount = f"{repo.resolve()}:/workspace:ro"
+        # JavaScript mounts node_modules inside /workspace, which requires a writable mount point.
+        mount = (
+            f"{repo.resolve()}:/workspace"
+            if language == Language.JAVASCRIPT
+            else f"{repo.resolve()}:/workspace:ro"
+        )
         if language == Language.PYTHON:
             script = (
                 "python -m pip install --disable-pip-version-check --no-cache-dir --target /deps pytest && "
@@ -172,7 +177,12 @@ class DockerTestRunner:
         )
 
     def _execute_tests(self, repo: Path, language: Language, volume: str, command: list[str]):
-        mount = f"{repo.resolve()}:/workspace:ro"
+        # JavaScript mounts node_modules inside /workspace, which requires a writable mount point.
+        mount = (
+            f"{repo.resolve()}:/workspace"
+            if language == Language.JAVASCRIPT
+            else f"{repo.resolve()}:/workspace:ro"
+        )
         image = "python:3.12-slim" if language == Language.PYTHON else "node:22-bookworm-slim"
         dependency_mount = (
             f"{volume}:/deps:ro"

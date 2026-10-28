@@ -95,12 +95,13 @@ class GitService:
     def apply_check(self, repo: Path, patch: str) -> None:
         self.ensure_patchpilot_branch(repo)
         self._run(
-            ["apply", "--check", "--whitespace=error-all", "-"],
+            ["apply", "--check", "--whitespace=warn", "-"],
             cwd=repo,
-            input_text=patch,
+            input_text=patch.replace("\r\n", "\n"),
         )
 
     def apply_patch(self, repo: Path, patch: str) -> None:
+        patch = patch.replace("\r\n", "\n")
         self.apply_check(repo, patch)
         self._run(["apply", "--whitespace=fix", "-"], cwd=repo, input_text=patch)
 
