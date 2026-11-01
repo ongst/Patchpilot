@@ -20,6 +20,7 @@ ALLOWED_APPROACHES = {"patchpilot", "single_prompt"}
 
 
 def validate_records(records: list[dict]) -> None:
+    seen: set[tuple[str, str]] = set()
     for index, record in enumerate(records):
         missing = REQUIRED_FIELDS - record.keys()
         if missing:
@@ -29,14 +30,17 @@ def validate_records(records: list[dict]) -> None:
                 f"Record {index} has invalid approach {record['approach']!r}; "
                 f"expected one of {sorted(ALLOWED_APPROACHES)}"
             )
+        key = (record["task_id"], record["approach"])
+        if key in seen:
+            raise ValueError(
+                f"Record {index} duplicates task {record['task_id']!r} "
+                f"for approach {record['approach']!r}"
+            )
+        seen.add(key)
 
 
-def score(path: Path) -> dict[str, float | int]:
-    records = json.loads(path.read_text(encoding="utf-8"))
+def _compute_metrics(records: list[dict]) -> dict[str, float | int]:
     total = len(records)
-    if not total:
-        raise ValueError("Evaluation results are empty")
-    validate_records(records)
     return {
         "tasks": total,
         "patch_apply_rate": sum(bool(item["patch_applied"]) for item in records) / total,
@@ -50,6 +54,17 @@ def score(path: Path) -> dict[str, float | int]:
             sum(int(item["changed_file_count"]) for item in records) / total, 2
         ),
     }
+
+
+def score(path: Path) -> dict[str, dict[str, float | int]]:
+    records = json.loads(path.read_text(encoding="utf-8"))
+    if not records:
+        raise ValueError("Evaluation results are empty")
+    validate_records(records)
+    grouped: dict[str, list[dict]] = {}
+    for record in records:
+        grouped.setdefault(record["approach"], []).append(record)
+    return {approach: _compute_metrics(group) for approach, group in grouped.items()}
 
 
 if __name__ == "__main__":
