@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from patchpilot.git_service import GitService
+from patchpilot.hunks import recount_hunks
 from patchpilot.models import DiffFileSummary
 from patchpilot.security import SecurityError, is_ignored, safe_repo_path
 
@@ -63,6 +64,7 @@ def validate_patch(
     max_files: int,
     max_changed_lines: int,
 ) -> PatchSummary:
+    patch = recount_hunks(patch)
     summary = validate_patch_structure(
         repo,
         patch,

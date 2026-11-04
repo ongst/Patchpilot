@@ -152,3 +152,47 @@ diff --git a/b.py b/b.py
 
 def test_parse_patch_summary_empty():
     assert parse_patch_summary("") == []
+
+
+def test_recount_does_not_bypass_path_check(tmp_path: Path):
+    git = init_repo(tmp_path)
+    # The hunk count is also wrong (+1,9), but recount must not mask the path escape.
+    patch = """diff --git a/../outside.py b/../outside.py
+--- a/../outside.py
++++ b/../outside.py
+@@ -0,0 +1,9 @@
++bad
+"""
+    with pytest.raises(SecurityError):
+        validate_patch(git, tmp_path, patch, max_files=8, max_changed_lines=800)
+
+
+def test_recount_does_not_fix_content_mismatch(tmp_path: Path):
+    git = init_repo(tmp_path)
+    # Recount fixes the count (+1,9 -> +1,2), but the context line still does not
+    # match app.py, so git apply --check must still fail.
+    patch = """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1,2 +1,9 @@
+ def wrong_function():
+-    return a - b
++    return a + b
+"""
+    with pytest.raises(RuntimeError):
+        validate_patch(git, tmp_path, patch, max_files=8, max_changed_lines=800)
+
+
+def test_corrupt_patch_applies_after_recount(tmp_path: Path):
+    git = init_repo(tmp_path)
+    # New-line count says 3 but the body has 2; recount fixes it before applying.
+    patch = """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1,2 +1,3 @@
+ def add(a, b):
+-    return a - b
++    return a + b
+"""
+    git.apply_patch(tmp_path, patch)
+    assert "return a + b" in (tmp_path / "app.py").read_text(encoding="utf-8")

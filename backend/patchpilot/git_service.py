@@ -7,6 +7,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from patchpilot.hunks import recount_hunks
 from patchpilot.security import SecurityError, redact_secrets, validate_repo_url
 
 
@@ -101,6 +102,7 @@ class GitService:
         )
 
     def apply_patch(self, repo: Path, patch: str) -> None:
+        patch = recount_hunks(patch)
         patch = patch.replace("\r\n", "\n")
         self.apply_check(repo, patch)
         self._run(["apply", "--whitespace=fix", "-"], cwd=repo, input_text=patch)
