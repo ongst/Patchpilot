@@ -32,14 +32,11 @@ def recount_hunks(patch: str) -> str:
 
     Start lines and body lines are otherwise preserved verbatim.
     """
-    lines = [
-        _strip_leading_whitespace(line)
-        for line in patch.replace("\r\n", "\n").splitlines(keepends=True)
-    ]
+    lines = patch.replace("\r\n", "\n").splitlines(keepends=True)
     result: list[str] = []
     index = 0
     while index < len(lines):
-        line = lines[index]
+        line = _strip_leading_whitespace(lines[index])
         match = _HUNK_HEADER.match(line)
         if match is None:
             result.append(line)
@@ -57,7 +54,17 @@ def recount_hunks(patch: str) -> str:
         index += 1
         while index < len(lines):
             body = lines[index]
-            if _HUNK_HEADER.match(body) or body.startswith("diff --git "):
+            structural = body.lstrip()
+            counts_complete = counted_old == declared_old and counted_new == declared_new
+            if (
+                _HUNK_HEADER.match(body)
+                or body.startswith("diff --git ")
+                or (
+                    counts_complete
+                    and body != structural
+                    and (_HUNK_HEADER.match(structural) or structural.startswith("diff --git "))
+                )
+            ):
                 break
             body_lines.append(body)
             if body.startswith("+") and not body.startswith("+++"):

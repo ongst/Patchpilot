@@ -17,6 +17,45 @@ def test_recount_correct_patch_unchanged():
     assert recount_hunks(patch) == patch
 
 
+def test_recount_preserves_indented_code_that_starts_with_structural_word():
+    patch = (
+        "diff --git a/app.py b/app.py\n"
+        "--- a/app.py\n"
+        "+++ b/app.py\n"
+        "@@ -1,2 +1,2 @@\n"
+        " def lookup():\n"
+        "     index = 1\n"
+    )
+
+    assert recount_hunks(patch) == patch
+
+
+def test_recount_preserves_context_that_looks_like_diff_header():
+    patch = (
+        "diff --git a/notes.txt b/notes.txt\n"
+        "--- a/notes.txt\n"
+        "+++ b/notes.txt\n"
+        "@@ -1,2 +1,2 @@\n"
+        " diff --git a/example b/example\n"
+        " explanation continues\n"
+    )
+
+    assert recount_hunks(patch) == patch
+
+
+def test_recount_preserves_context_that_looks_like_hunk_header():
+    patch = (
+        "diff --git a/notes.txt b/notes.txt\n"
+        "--- a/notes.txt\n"
+        "+++ b/notes.txt\n"
+        "@@ -1,2 +1,2 @@\n"
+        " @@ -1 +1 @@\n"
+        " explanation continues\n"
+    )
+
+    assert recount_hunks(patch) == patch
+
+
 def test_recount_adds_missing_trailing_newline():
     patch = (
         "diff --git a/app.py b/app.py\n"
