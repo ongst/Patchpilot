@@ -4,7 +4,7 @@
 
 **A human-approved code repair agent with auditable tools, isolated tests, and recoverable workflows.**
 
-面向公开 Python 与 npm 仓库的代码修复 Agent：读取 Issue、分析代码、生成统一 Diff，经人工审批后在 Docker 中测试，并在最终确认后推送独立分支。
+PatchPilot 是一个带双重人工审批的代码修复 Agent：它分析公开仓库与 Issue，生成并校验 Diff，在隔离容器中测试，最多重试两轮，并在最终批准后推送独立分支。
 
 [![CI](https://github.com/ongst/Patchpilot/actions/workflows/ci.yml/badge.svg)](https://github.com/ongst/Patchpilot/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)
@@ -14,6 +14,16 @@
 ![Docker](https://img.shields.io/badge/Tests-Docker-2496ED?logo=docker&logoColor=white)
 
 </div>
+
+## 完整实时演示
+
+[▶ 下载并观看 2 分 29 秒完整演示（WebM）](docs/assets/patchpilot-live-full-demo-2026-11-08.webm)
+
+| 第一次人工审批：审阅 Unified Diff | Docker 测试与远端推送完成 |
+| --- | --- |
+| ![PatchPilot 展示 Unified Diff 并等待第一次人工审批](docs/assets/patchpilot-live-diff-approval.png) | ![PatchPilot 完成 Docker 测试并推送独立分支](docs/assets/patchpilot-live-full-demo-2026-11-08-end.png) |
+
+演示使用公开固定缺陷仓库，从 Issue 输入开始，真实完成 RepairPlan、Diff 校验、两次人工审批、Docker 测试以及 `patchpilot/*` 分支推送。运行 `0bf2e6cdda9b400395a87a9b268224eb` 一次通过，远端分支为 `patchpilot/run-0bf2e6cd`，提交为 `f2ceeb9c`；[机器可读结果](docs/assets/patchpilot-live-full-demo-2026-11-08.json)不包含任何凭据。
 
 ## 项目简介
 
@@ -72,7 +82,7 @@ GitHub 仓库 + Issue
 | 取消、重启恢复与最终报告 | 已实现 |
 | 确定性工作流端到端测试 | 已实现 |
 | 12 项隐藏测试评测集定义 | 已实现 |
-| 真实模型批量评测结果 | 待运行与发布 |
+| 真实模型批量评测结果 | 已实现 |
 | 私有仓库与自动创建 PR | 暂不在首版范围 |
 
 项目包含一个完全离线、无需真实模型和 GitHub Token 的黄金路径测试。它会真正应用补丁，并验证两次审批、测试结果、最终状态和运行报告是否一致。
@@ -82,8 +92,9 @@ GitHub 仓库 + Issue
 ```mermaid
 flowchart LR
     UI[React 控制台] -->|REST / SSE| API[FastAPI]
-    API --> DB[(Runs + Events)]
-    API --> G[LangGraph]
+    API --> RS[RunService]
+    RS --> DB[(Runs + Events)]
+    RS --> G[LangGraph 工作流]
     G --> T[受限仓库工具]
     G --> L[OpenAI 兼容模型接口]
     G --> A1{补丁审批}
@@ -226,10 +237,17 @@ Ruff
 
 ```powershell
 python evaluation\materialize.py evaluation\generated
-python evaluation\score.py results.json
+python evaluation\score.py evaluation\results\results_v2.json
 ```
 
-当前仓库只声明评测协议和任务，不伪造尚未运行的真实模型成功率。正式结果会固定模型、Prompt、温度、工具轮次和重试次数后再发布。
+12 题真实模型评测（`deepseek-flash`，`temperature=0`，隐藏测试在隔离容器中评分）：
+
+| 方案 | 补丁可应用率 | 隐藏测试通过率 |
+| --- | --- | --- |
+| PatchPilot（含 Diff 归一化） | 91.7% (11/12) | 91.7% (11/12) |
+| Single Prompt 基线 | 91.7% (11/12) | 91.7% (11/12) |
+
+完整数据、失败分析与前后对比见 [评测协议](docs/evaluation.md)。评测规模较小（12 题）、任务简单且模型输出有非确定性，结果不能外推为通用代码修复能力。
 
 ## API
 
@@ -248,16 +266,28 @@ python evaluation\score.py results.json
 
 关键状态流转：
 
-```text
-queued
-→ cloning → profiling → baseline_testing
-→ planning → validating_patch
-→ awaiting_patch_approval
-→ applying_patch → testing
-→ repairing（最多两轮）或 awaiting_push_approval
-→ committing → pushing
-→ completed / completed_local / rejected / cancelled / failed
+```mermaid
+stateDiagram-v2
+    [*] --> queued
+    queued --> cloning
+    cloning --> profiling
+    profiling --> baseline_testing
+    baseline_testing --> planning
+    planning --> validating_patch
+    validating_patch --> awaiting_patch_approval
+    awaiting_patch_approval --> applying_patch: 批准补丁
+    awaiting_patch_approval --> rejected: 拒绝补丁
+    applying_patch --> testing
+    testing --> planning: 失败且可重试（最多两轮）
+    testing --> awaiting_push_approval: 测试通过
+    testing --> failed: 超过重试上限
+    awaiting_push_approval --> committing: 批准推送
+    committing --> pushing
+    pushing --> completed
+    awaiting_push_approval --> completed_local: 拒绝推送（保留本地）
 ```
+
+任意非终态都可协作式取消进入 `cancelled`。
 
 两个审批点都由 LangGraph `interrupt()` 暂停，并通过 SQLite checkpoint 恢复。服务重启后，审批等待任务仍可继续；失去后台线程的执行中任务会被明确标记为失败，而不是永久显示“运行中”。
 
@@ -277,14 +307,16 @@ queued
 - [x] SSE 续传、结构化 Diff、取消与异常恢复
 - [x] 最终报告和确定性端到端集成测试
 - [x] 12 项 Python / JavaScript 隐藏测试评测定义
-- [ ] 运行并发布真实模型评测结果
-- [ ] 使用两个公开固定缺陷仓库录制三分钟演示
+- [x] 运行并发布真实模型评测结果
+- [x] 使用公开固定缺陷仓库录制完整实时演示
 - [ ] 完善移动端布局与运行历史筛选
 - [ ] 可选的自动创建 Pull Request
 
 ## 项目材料
 
 - [三分钟演示脚本](docs/demo-script.md)
+- [完整实时演示视频](docs/assets/patchpilot-live-full-demo-2026-11-08.webm)
+- [实时演示运行结果](docs/assets/patchpilot-live-full-demo-2026-11-08.json)
 - [简历描述](docs/resume.md)
 - [评测协议](docs/evaluation.md)
 - [首次真实本地闭环运行](docs/runs/day09-python-local.md)

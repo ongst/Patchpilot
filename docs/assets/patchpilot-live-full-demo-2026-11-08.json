@@ -1,0 +1,9 @@
+{
+  "run_id": "0bf2e6cdda9b400395a87a9b268224eb",
+  "status": "completed",
+  "test_passed": true,
+  "commit_sha": "f2ceeb9c47814aa4b43512a7a733eb240f3d86e8",
+  "remote_branch": "patchpilot/run-0bf2e6cd",
+  "token_usage": 4065,
+  "finished_at": "2026-11-07T17:42:50.193529Z"
+}
